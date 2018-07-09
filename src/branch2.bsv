@@ -155,6 +155,8 @@ module mkbranch(Ifc_branch);
 	//cregs for speculative training of history
 	Reg#(Bit#(TAdd#(`GLOBAL_ADDR,1))) crg_hist0[2] <- mkCReg(2,0);
 	Reg#(Bit#(TAdd#(`GLOBAL_ADDR,1))) crg_hist1[2] <- mkCReg(2,0);
+
+	Reg#(Bit#(TAdd#(`GLOBAL_ADDR,1))) crg_hist[2] <- mkCReg(2,0);
 	//to choose between the 2 cregs
 	Reg#(Bit#(1)) rg_choice <- mkReg(0);
 	//to schedule mn_get() after train
@@ -310,16 +312,7 @@ module mkbranch(Ifc_branch);
 	//update history
 	rule rl_shift_hist(wr_fubar);
 		Bit#(TSub#(`HIST_SIZE,1)) lv_gnd=0;
-		if(rg_choice==0)
-		begin
-			rg_global_history<= (rg_global_history<<1) | {lv_gnd,wr_shift_in};
-		end
-		
-		else
-		begin
-			rg_global_history<= (rg_global_history<<1) | {lv_gnd,wr_shift_in};
-		end
-		
+		rg_global_history<= (rg_global_history<<1) | {lv_gnd,wr_shift_in};
 	endrule
 		
 	rule rl_file(file_open);
@@ -388,19 +381,9 @@ module mkbranch(Ifc_branch);
 		Gv_global_addr lv_actual_hist= 0;
 		Gv_bimodal_addr lv_bimodal_addr=pc[`BIMODAL_ADDR-1:0];
 
-		if(rg_choice==0)
-		begin
-			Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist0[1];
-			lv_actual_hist= lv_temp[`GLOBAL_ADDR-1:0];		
-			//$display("%b",crg_hist0[1],"\n");	
-		end
-
-		else
-		begin
-			Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist1[1];
-			lv_actual_hist= lv_temp[`GLOBAL_ADDR-1:0];
-			//$display("%b",crg_hist1[1],"\n");	
-		end
+		Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist[1];
+		lv_actual_hist= lv_temp[`GLOBAL_ADDR-1:0];		
+		//$display("%b",crg_hist0[1],"\n");	
 		
 		Bit#(TAdd#(`GLOBAL_ADDR,`PIPELINE_DEPTH)) lv_temp2=crg_bank2_csr_indx[1];
 		
@@ -422,7 +405,7 @@ module mkbranch(Ifc_branch);
 		$display("%b:",(crg_bank4_csr_s[1])[6:0],"\n");*/
 
 		//only for debugging
-		Bit#(90) lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]}; 
+		Bit#(90) lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]}; 
 
 		//$fwrite(dump1,"%b:%b:%b:%b:%b:%b:%b:%b:%b:%b:%b:%b:%b",lv_global_history[79:0],lv_actual_hist,lv_temp2[9:0],lv_temp3[9:0],lv_temp4[9:0],(crg_bank1_csr_p[1])[7:0],(crg_bank2_csr_p[1])[7:0],(crg_bank3_csr_p[1])[7:0],(crg_bank4_csr_p[1])[7:0],(crg_bank1_csr_s[1])[6:0],(crg_bank2_csr_s[1])[6:0],(crg_bank3_csr_s[1])[6:0],(crg_bank4_csr_s[1])[6:0],"\n");
 
@@ -578,26 +561,13 @@ module mkbranch(Ifc_branch);
 		crg_bank2_csr_s[0] <= {(crg_bank2_csr_s[0])[12:7] << 1 | zeroExtend((crg_bank2_csr_s[0])[6]),((crg_bank2_csr_s[0])[5]^(rg_global_history[9])), (crg_bank2_csr_p[0])[5:0] << 1 | zeroExtend(prediction^(crg_bank2_csr_p[0])[6])};
 		crg_bank3_csr_s[0] <= {((crg_bank3_csr_s[0])[12:5] << 1 |zeroExtend(rg_global_history[29]^(crg_bank3_csr_p[0])[4])), (crg_bank3_csr_p[0])[4:0] << 1 | zeroExtend(prediction^(crg_bank3_csr_p[0])[7])};
 		crg_bank4_csr_s[0] <= {((crg_bank4_csr_s[0])[12:3] << 1 |zeroExtend(rg_global_history[69]^(crg_bank4_csr_p[0])[2])), (crg_bank4_csr_p[0])[2:0] << 1 | zeroExtend(prediction^(crg_bank4_csr_p[0])[7])};
-
-		if(rg_choice==0)
-		begin	
-			Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist0[0];
-			Bit#(`GLOBAL_ADDR) lv_gnd=0;
-			crg_hist0[0]<= (crg_hist0[0]<<1) | {lv_gnd,prediction};
-			wr_shift_in<= (crg_hist0[0])[`GLOBAL_ADDR-1];
-			crg_bank1_csr_p[0] <= {((crg_bank1_csr_p[0])[13:6] << 1) | {7'b0,((crg_hist0[0])[9]^(crg_bank1_csr_p[0])[5])}, ((crg_bank1_csr_p[0])[5:0] << 1) | {5'b0, prediction^(crg_bank1_csr_p[0])[7]}};
-		crg_bank1_csr_s[0] <= {((crg_bank1_csr_s[0])[12:4] << 1 | zeroExtend((crg_hist0[0])[9]^(crg_bank1_csr_p[0])[2])), (crg_bank1_csr_p[0])[3:0] << 1 | zeroExtend(prediction^(crg_bank1_csr_p[0])[7])};
-		end
-
-		else
-		begin
-			Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist1[0];
-			Bit#(`GLOBAL_ADDR) lv_gnd=0;
-			crg_hist1[0]<= (crg_hist1[0]<<1) | {lv_gnd,prediction};
-			wr_shift_in<= (crg_hist1[0])[`GLOBAL_ADDR-1];
-			crg_bank1_csr_p[0] <= {((crg_bank1_csr_p[0])[13:6] << 1) | {7'b0,((crg_hist1[0])[9]^(crg_bank1_csr_p[0])[5])}, ((crg_bank1_csr_p[0])[5:0] << 1) | {5'b0, prediction^(crg_bank1_csr_p[0])[7]}};
-		crg_bank1_csr_s[0] <= {((crg_bank1_csr_s[0])[12:4] << 1 | zeroExtend((crg_hist1[0])[9]^(crg_bank1_csr_p[0])[2])), (crg_bank1_csr_p[0])[3:0] << 1 | zeroExtend(prediction^(crg_bank1_csr_p[0])[7])};
-		end
+	
+		Bit#((TAdd#(`GLOBAL_ADDR,1))) lv_temp= crg_hist[0];
+		Bit#(`GLOBAL_ADDR) lv_gnd=0;
+		crg_hist[0]<= (crg_hist[0]<<1) | {lv_gnd,prediction};
+		wr_shift_in<= (crg_hist[0])[`GLOBAL_ADDR-1];
+		crg_bank1_csr_p[0] <= {((crg_bank1_csr_p[0])[13:6] << 1) | {7'b0,((crg_hist[0])[9]^(crg_bank1_csr_p[0])[5])}, ((crg_bank1_csr_p[0])[5:0] << 1) | {5'b0, prediction^(crg_bank1_csr_p[0])[7]}};
+		crg_bank1_csr_s[0] <= {((crg_bank1_csr_s[0])[12:4] << 1 | zeroExtend((crg_hist[0])[9]^(crg_bank1_csr_p[0])[2])), (crg_bank1_csr_p[0])[3:0] << 1 | zeroExtend(prediction^(crg_bank1_csr_p[0])[7])};
 
 		crg_inflight[0]<= crg_inflight[0]+1;	
 		wr_fubar<= True;
@@ -671,31 +641,20 @@ module mkbranch(Ifc_branch);
 		crg_bank1_csr_s[1] <= {((crg_bank1_csr_s[1])[12:4] << 1 | zeroExtend(rg_real_global_history[9]^rg_bank1_csr_p[2])), rg_bank1_csr_p[3:0]<<1 | zeroExtend(pack(lv_actual)^rg_bank1_csr_p[7])};
 			
 
-			Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_hist0= crg_hist0[1];
-			Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_hist1= crg_hist1[1];
+			Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_hist= crg_hist[1];
+			//Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_hist1= crg_hist1[1];
 
-			lv_global_history= (rg_choice==0)?{rg_global_history,lv_temp_hist0[`GLOBAL_ADDR-1:0]} :{rg_global_history,lv_temp_hist1[`GLOBAL_ADDR-1:0]};
+			lv_global_history= {rg_global_history,lv_temp_hist[`GLOBAL_ADDR-1:0]};
 
 			//prediction is false so right shift and swap(but in 0 case only 1 left shift needed)
 			if(!lv_truth)
 			begin
 				Bit#(TSub#(TAdd#(`HIST_SIZE,`GLOBAL_ADDR),1)) lv_gnd=0;
 				lv_global_history= (lv_global_history<<1) | {lv_gnd,pack(lv_actual)};
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
-			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-				end
+
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
+				crg_hist[1]<= lv_temp_shift;
+
 				rg_global_history<= (rg_global_history<<1) | zeroExtend(lv_global_history[`GLOBAL_ADDR]);
 			end
 
@@ -703,17 +662,10 @@ module mkbranch(Ifc_branch);
 			begin
 				Bit#(TSub#(TAdd#(`HIST_SIZE,`GLOBAL_ADDR),1)) lv_gnd=0;
 				lv_global_history= (lv_global_history<<1) | {lv_gnd,pack(lv_actual)};
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					crg_hist0[1]<= lv_temp_shift;
-				end
 			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					crg_hist1[1]<= lv_temp_shift;
-				end
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
+				crg_hist[1]<= lv_temp_shift;
+
 				rg_global_history<= (rg_global_history<<1) | zeroExtend(lv_global_history[`GLOBAL_ADDR]);
 			end
 		end
@@ -721,29 +673,18 @@ module mkbranch(Ifc_branch);
 		1:
 		begin	
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]}; 
+				lv_global_history={rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]}; 
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[0]= pack(lv_actual);
-				if(rg_choice==0)
-				begin		
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
-			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-				end
+		
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR:0];
+				
+				crg_hist[1]<= lv_temp_shift;
 
 				Bit#(TAdd#(`GLOBAL_ADDR,`PIPELINE_DEPTH)) lv_temp2=crg_bank2_csr_indx[1];
 				Bit#(TAdd#(`GLOBAL_ADDR,`PIPELINE_DEPTH)) lv_temp3=crg_bank3_csr_indx[1];
@@ -787,30 +728,19 @@ module mkbranch(Ifc_branch);
 		2:
 		begin
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]};
+				lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]};
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[1]= pack(lv_actual);
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+1:1];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
-			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+1:1];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
 
-				end
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+1:1];
+			
+				crg_hist[1]<= lv_temp_shift;
+	
 				rg_global_history<= zeroExtend(lv_global_history[89:11]);
 				//let lv_temp2_csr_indx= crg_bank2_csr_indx[1];
 				
@@ -854,30 +784,19 @@ module mkbranch(Ifc_branch);
 		3:
 		begin
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]};
+				lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]};
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[2]= pack(lv_actual);
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+2:2];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
 			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+2:2];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-
-				end
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+2:2];
+				
+				crg_hist[1]<= lv_temp_shift;
+			
 				rg_global_history<= zeroExtend(lv_global_history[89:12]);
 				crg_bank2_csr_indx[1]<= {(crg_bank2_csr_indx[1])[15:10]>>2,(rg_bank2_csr_indx << 1) | {9'b0,(rg_real_global_history[19]^pack(lv_actual)^rg_bank2_csr_indx[9])}};	
 				crg_bank3_csr_indx[1]<= {(crg_bank3_csr_indx[1])[15:10]>>2,(rg_bank3_csr_indx << 1) | {9'b0,(rg_real_global_history[39]^pack(lv_actual)^rg_bank3_csr_indx[9])}};
@@ -919,29 +838,18 @@ module mkbranch(Ifc_branch);
 		4:
 		begin
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]};
+				lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]};
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[3]= pack(lv_actual);
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+3:3];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
+
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+3:3];
+				crg_hist[1]<= lv_temp_shift;
 			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+3:3];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-				end
 				rg_global_history<= zeroExtend(lv_global_history[89:13]);
 				crg_bank2_csr_indx[1]<= {(crg_bank2_csr_indx[1])[15:10]>>3,(rg_bank2_csr_indx << 1) | {9'b0,(rg_real_global_history[19]^pack(lv_actual)^rg_bank2_csr_indx[9])}};	
 				crg_bank3_csr_indx[1]<= {(crg_bank3_csr_indx[1])[15:10]>>3,(rg_bank3_csr_indx << 1) | {9'b0,(rg_real_global_history[39]^pack(lv_actual)^rg_bank3_csr_indx[9])}};
@@ -984,29 +892,19 @@ module mkbranch(Ifc_branch);
 		5:
 		begin
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]};
+				lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]};
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[4]= pack(lv_actual);
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+4:4];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
-			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+4:4];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-				end
+
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+4:4];
+					
+				crg_hist[1]<= lv_temp_shift;
+
 				rg_global_history<= zeroExtend(lv_global_history[89:14]);
 				crg_bank2_csr_indx[1]<= {(crg_bank2_csr_indx[1])[15:10]>>4,(rg_bank2_csr_indx << 1) | {9'b0,(rg_real_global_history[19]^pack(lv_actual)^rg_bank2_csr_indx[9])}};	
 				crg_bank3_csr_indx[1]<= {(crg_bank3_csr_indx[1])[15:10]>>4,(rg_bank3_csr_indx << 1) | {9'b0,(rg_real_global_history[39]^pack(lv_actual)^rg_bank3_csr_indx[9])}};
@@ -1048,29 +946,19 @@ module mkbranch(Ifc_branch);
 		6:
 		begin
 			if(wr_fubar)
-				lv_global_history= (rg_choice==0)?{(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist0[1]} : {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist1[1]};
+				lv_global_history= {(rg_global_history<<1),lv_gnd2} | {lv_gnd1,crg_hist[1]};
 			else
-				lv_global_history= (rg_choice==0)?{rg_global_history,(crg_hist0[1])[`GLOBAL_ADDR-1:0]} :{rg_global_history,(crg_hist1[1])[`GLOBAL_ADDR-1:0]};
+				lv_global_history= {rg_global_history,(crg_hist[1])[`GLOBAL_ADDR-1:0]};
 			//prediction is false so right shift and swap
 			if(!(lv_truth && lv_hit))
 			begin
 				crg_inflight[1]<= 0;
 				lv_global_history[5]= pack(lv_actual);
-				if(rg_choice==0)
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+5:5];
-					rg_choice<= 1;
-					crg_hist0[1]<= 0;
-					crg_hist1[1]<= lv_temp_shift;
-				end
-			
-				else
-				begin
-					Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+5:5];
-					rg_choice<= 0;
-					crg_hist1[1]<= 0;
-					crg_hist0[1]<= lv_temp_shift;
-				end
+
+				Bit#(TAdd#(`GLOBAL_ADDR,1)) lv_temp_shift= lv_global_history[`GLOBAL_ADDR+5:5];
+					
+				crg_hist[1]<= lv_temp_shift;
+	
 				rg_global_history<= zeroExtend(lv_global_history[89:15]);
 				crg_bank2_csr_indx[1]<= {(crg_bank2_csr_indx[1])[15:10]>>5,(rg_bank2_csr_indx << 1) | {9'b0,(rg_real_global_history[19]^pack(lv_actual)^rg_bank2_csr_indx[9])}};	
 				crg_bank3_csr_indx[1]<= {(crg_bank3_csr_indx[1])[15:10]>>5,(rg_bank3_csr_indx << 1) | {9'b0,(rg_real_global_history[39]^pack(lv_actual)^rg_bank3_csr_indx[9])}};
